@@ -13,6 +13,9 @@ import os
 import time
 import copy
 from gym import wrappers
+import gym_apn_connect4
+from gym_apn_connect4.agents.random_agent import RandomAgent
+from gym_apn_connect4.agents.keyboard_agent import KeyboardAgent
 import matplotlib.pyplot as plt
 plt.style.use('ggplot')
 
@@ -26,7 +29,7 @@ class Model():
     def __init__(self,Env,lr,n_hidden_layers,n_hidden_units):
         # Check the Gym environment
         self.action_dim, self.action_discrete  = check_space(Env.action_space)
-        self.state_dim, self.state_discrete  = check_space(Env.observation_space)
+        self.state_dim, self.state_discrete = check_space(Env.observation_space)
         if not self.action_discrete: 
             raise ValueError('Continuous action space not implemented')
         
@@ -261,7 +264,7 @@ def agent(game,n_ep,n_mcts,max_ep_len,lr,c,gamma,data_size,batch_size,temp,n_hid
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--game', default='CartPole-v0',help='Training environment')
+    parser.add_argument('--game', default='gym_apn_connect4:ApnConnect4-v0',help='Training environment')
     parser.add_argument('--n_ep', type=int, default=500, help='Number of episodes')
     parser.add_argument('--n_mcts', type=int, default=25, help='Number of MCTS traces per step')
     parser.add_argument('--max_ep_len', type=int, default=300, help='Maximum number of steps per episode')
