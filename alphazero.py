@@ -109,9 +109,12 @@ class State():
         self.child_actions = [Action(a,parent_state=self,Q_init=self.V) for a in range(na)]
         self.priors = model.predict_pi(index[None,]).flatten()
     
-    def select(self,c=1.5):
+    def select(self,legal_moves,c=1.5):
         ''' Select one of the child actions based on UCT rule '''
         UCT = np.array([child_action.Q + prior * c * (np.sqrt(self.n + 1)/(child_action.n + 1)) for child_action,prior in zip(self.child_actions,self.priors)]) 
+        for i in range(len(UCT)):
+            if i not in legal_moves:
+                UCT[i] = -1
         winner = argmax(UCT)
         return self.child_actions[winner]
 
@@ -122,7 +125,8 @@ class State():
     def update(self):
         ''' update count on backward pass '''
         self.n += 1
-        
+
+
 class MCTS():
     ''' MCTS object '''
 
@@ -153,8 +157,9 @@ class MCTS():
             else:
                 restore_atari_state(mcts_env,snapshot)            
             
-            while not state.terminal: 
-                action = state.select(c=c)
+            while not state.terminal:
+                legal_actions = mcts_env.get_legal_moves()
+                action = state.select(legal_actions,c=c)
                 s1,r,t,_ = mcts_env.step(action.index)
                 if hasattr(action,'child_state'):
                     state = action.child_state # select
@@ -206,7 +211,7 @@ def agent(game,n_ep,n_mcts,max_ep_len,lr,c,gamma,data_size,batch_size,temp,n_hid
 
     D = Database(max_size=data_size,batch_size=batch_size)        
     model = Model(Env=Env,lr=lr,n_hidden_layers=n_hidden_layers,n_hidden_units=n_hidden_units)  
-    t_total = 0 # total steps   
+    t_total = 0# total steps
     R_best = -np.Inf
  
     with tf.Session() as sess:
@@ -231,7 +236,20 @@ def agent(game,n_ep,n_mcts,max_ep_len,lr,c,gamma,data_size,batch_size,temp,n_hid
                 D.store((state,V,pi))
 
                 # Make the true step
-                a = np.random.choice(len(pi),p=pi)
+
+                try:
+                    legal_moves = Env.get_legal_moves()
+                    mask = np.ones(pi.shape, dtype=bool)
+                    mask[legal_moves] = False
+                    pi[mask] = 0.
+                    s = sum(pi)
+                    norm = [i / s for i in pi]
+                    a = np.random.choice(len(norm), p=norm)
+
+                except Exception:
+                    print("likely not implemented")
+                    a = np.random.choice(len(pi), p=pi)
+
                 a_store.append(a)
                 s1,r,terminal,_ = Env.step(a)
                 R += r
@@ -265,7 +283,7 @@ def agent(game,n_ep,n_mcts,max_ep_len,lr,c,gamma,data_size,batch_size,temp,n_hid
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--game', default='gym_apn_connect4:ApnConnect4-v0',help='Training environment')
-    parser.add_argument('--n_ep', type=int, default=500, help='Number of episodes')
+    parser.add_argument('--n_ep', type=int, default=100, help='Number of episodes')
     parser.add_argument('--n_mcts', type=int, default=25, help='Number of MCTS traces per step')
     parser.add_argument('--max_ep_len', type=int, default=300, help='Maximum number of steps per episode')
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate')
@@ -295,11 +313,11 @@ if __name__ == '__main__':
     ax.set_xlabel('Episode',color='darkred')
     plt.savefig(os.getcwd()+'/learning_curve.png',bbox_inches="tight",dpi=300)
     
-#    print('Showing best episode with return {}'.format(R_best))
-#    Env = make_game(args.game)
-#    Env = wrappers.Monitor(Env,os.getcwd() + '/best_episode',force=True)
-#    Env.reset()
-#    Env.seed(seed_best)
-#    for a in a_best:
-#        Env.step(a)
-#        Env.render()
+    print('Showing best episode with return {}'.format(R_best))
+    Env = make_game(args.game)
+    Env = wrappers.Monitor(Env,os.getcwd() + '/best_episode',force=True)
+    Env.reset()
+    Env.seed(seed_best)
+    for a in a_best:
+        Env.step(a)
+        Env.render()
